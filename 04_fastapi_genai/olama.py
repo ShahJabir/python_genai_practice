@@ -13,6 +13,6 @@ client = Client(
 def chat(message: str = Body(..., description="The Message")):
     """Olama Model Chat"""
     response = client.chat(
-        model="gemma:2b", messages=[{"role": "user", "content": message}]
+        model="gemma:2b", messages=[{"role": "user", "content": message}], stream=False
     )
-    return {"response": response.message.content}
+    return {"response": response["message"]["content"]}
