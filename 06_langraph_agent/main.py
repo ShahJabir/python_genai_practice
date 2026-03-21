@@ -1,44 +1,76 @@
-"""Basic Langraph Agent"""
+"""Conditional LangGraph Agent"""
 
-from typing import Annotated
-from dotenv import load_dotenv
+from typing import Optional, Literal
 from typing_extensions import TypedDict
-from langgraph.graph.message import add_messages
+from openai import OpenAI
+from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
-from langchain.chat_models import init_chat_model
 
 load_dotenv()
 
-llm = init_chat_model(model="gemini-3-flash-preview", model_provider="google_genai")
+client = OpenAI()
 
 
 class State(TypedDict):
-    """State for the Langraph agent"""
+    """State for the LangGraph agent."""
 
-    messages: Annotated[list, add_messages]
+    user_query: str
+    llm_output: Optional[str]
+    is_good: Optional[bool]
 
 
 def chatbot(state: State):
-    """Chatbot node"""
-    response = llm.invoke(state.get("messages"))
-    return {"messages": [response]}
+    """ChatBot node for the LangGraph agent."""
+    print("ChatBot Node", state)
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": state.get("user_query")}],
+    )
+
+    state["llm_output"] = response.choices[0].message.content
+    return state
 
 
-def samplenode(state: State):
-    """Sample node"""
-    print("inside sample node", state)
-    return {"messages": ["Hi, This is a message from Sample Node"]}
+def evalaute_response(state: State) -> Literal["chatbot_gemini", "endnode"]:
+    """Evaluate the response and determine the next node."""
+    print("evalaute_response Node", state)
+    if False:
+        return "endnode"
+
+    return "chatbot_gemini"
+
+
+def chatbot_gemini(state: State):
+    """ChatBot Gemini node for the LangGraph agent."""
+    print("chatbot_gemini Node", state)
+    response = client.chat.completions.create(
+        model="gpt-4.1", messages=[{"role": "user", "content": state.get("user_query")}]
+    )
+
+    state["llm_output"] = response.choices[0].message.content
+    return state
+
+
+def endnode(state: State):
+    """End node for the LangGraph agent."""
+    print("endnode Node", state)
+    return state
 
 
 graph_builder = StateGraph(State)
+
 graph_builder.add_node("chatbot", chatbot)
-graph_builder.add_node("samplenode", samplenode)
+graph_builder.add_node("chatbot_gemini", chatbot_gemini)
+graph_builder.add_node("endnode", endnode)
+
+
 graph_builder.add_edge(START, "chatbot")
-graph_builder.add_edge("chatbot", "samplenode")
-graph_builder.add_edge("samplenode", END)
+graph_builder.add_conditional_edges("chatbot", evalaute_response)
+
+graph_builder.add_edge("chatbot_gemini", "endnode")
+graph_builder.add_edge("endnode", END)
 
 graph = graph_builder.compile()
 
-updated_state = graph.invoke(State({"messages": ["Hi, My name is Shah Jabir Taqi!"]}))
-
-print("updated_state", updated_state)
+updated_state = graph.invoke(State({"user_query": "Hey, What is 2 + 2?"}))
+print(updated_state)
