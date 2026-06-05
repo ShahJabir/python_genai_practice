@@ -1,1 +1,1 @@
-# genai_practice
+# gen-ai-practise
